@@ -1,0 +1,23 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/attendance/{recordId} {
+      allow read, delete: if request.auth != null
+        && request.auth.uid == userId
+        && request.auth.token.email_verified == true;
+
+      allow create, update: if request.auth != null
+        && request.auth.uid == userId
+        && request.auth.token.email_verified == true
+        && request.resource.data.keys().hasOnly([
+          'date', 'subject', 'session', 'hours', 'status', 'updatedAt'
+        ])
+        && request.resource.data.date is string
+        && request.resource.data.subject is string
+        && request.resource.data.session is string
+        && request.resource.data.hours in [1, 2, 3]
+        && request.resource.data.status in ['Present', 'Absent']
+        && request.resource.data.updatedAt is string;
+    }
+  }
+}
