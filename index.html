@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#173b67">
+  <title>UCEOU Mechanical Attendance</title>
+  <style>
+    :root { --navy:#173b67; --blue:#245aa6; --bg:#f3f6fb; --ink:#172033; --muted:#65738a; --line:#dce4ef; --green:#16794b; --red:#b42318; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:var(--bg); color:var(--ink); }
+    header { background:var(--navy); color:white; padding:22px 16px; }
+    header .wrap, main { max-width:900px; margin:auto; }
+    h1 { font-size:1.45rem; margin:0 0 5px; }
+    header p { margin:0; color:#e0eafa; font-size:.94rem; }
+    main { padding:16px; }
+    .card { background:white; border:1px solid var(--line); border-radius:16px; padding:17px; margin:0 0 15px; box-shadow:0 3px 12px #16365b0a; }
+    h2 { font-size:1.08rem; margin:0 0 13px; }
+    label { display:block; font-weight:650; font-size:.9rem; margin:10px 0 6px; }
+    input, select, button { font:inherit; }
+    input, select { width:100%; border:1px solid #bdc9d9; border-radius:10px; padding:11px 12px; background:white; color:var(--ink); }
+    button { border:0; border-radius:10px; padding:11px 14px; font-weight:700; cursor:pointer; }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    .primary { background:var(--blue); color:white; }
+    .present { background:#d9f5e7; color:#075c37; border:1px solid #9adbb9; }
+    .absent { background:#ffebe9; color:#9e2118; border:1px solid #f4b0aa; }
+    .secondary { background:#e9eef6; color:#213b5f; }
+    .danger { background:#fff0ee; color:#9e2118; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .row > * { flex:1; }
+    .small { color:var(--muted); font-size:.88rem; line-height:1.45; }
+    .notice { padding:11px 12px; background:#eef5ff; border:1px solid #c9ddfb; border-radius:10px; color:#21456e; font-size:.9rem; }
+    .status { font-size:.9rem; margin-top:10px; min-height:1.3em; color:var(--muted); overflow-wrap:anywhere; }
+    .status.error { color:var(--red); }
+    .status.ok { color:var(--green); }
+    .hidden { display:none !important; }
+    .stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; margin:12px 0; }
+    .stat { background:#f7f9fc; border:1px solid var(--line); padding:11px; border-radius:12px; }
+    .stat strong { display:block; font-size:1.25rem; }
+    .stat span { color:var(--muted); font-size:.8rem; }
+    .subject { border-top:1px solid var(--line); padding:12px 0; }
+    .subject:first-child { border-top:0; }
+    .subject-title { display:flex; justify-content:space-between; gap:12px; font-weight:700; }
+    .bar { height:8px; border-radius:99px; background:#e7edf5; margin-top:8px; overflow:hidden; }
+    .bar > div { height:100%; background:#2b8a5a; }
+    .record { display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-top:1px solid var(--line); align-items:center; }
+    .record:first-child { border-top:0; }
+    .pill { display:inline-block; font-size:.78rem; border-radius:99px; padding:4px 8px; background:#edf1f7; white-space:nowrap; }
+    footer { max-width:900px; margin:auto; padding:0 16px 24px; color:var(--muted); font-size:.8rem; }
+    @media (max-width:520px) { .stats { grid-template-columns:repeat(3,minmax(0,1fr)); } .stat { padding:8px; } .stat strong { font-size:1.05rem; } .row.mobile-stack > * { flex-basis:100%; } }
+  </style>
+</head>
+<body>
+<header><div class="wrap">
+  <h1>UCEOU Mechanical Engineering</h1>
+  <p>Personal attendance tracker · 75% target · Shared website, private records</p>
+</div></header>
+<main>
+  <section id="authCard" class="card">
+    <h2>Sign in or create your account</h2>
+    <p class="small">Use your own email. If you create an account, verify your email from the message Firebase sends before using attendance.</p>
+    <label for="email">Email address</label>
+    <input id="email" type="email" autocomplete="email" placeholder="you@example.com">
+    <label for="password">Password (at least 6 characters)</label>
+    <input id="password" type="password" autocomplete="current-password" placeholder="At least 6 characters">
+    <div class="row mobile-stack" style="margin-top:13px">
+      <button id="signInBtn" class="primary">Sign in</button>
+      <button id="signUpBtn" class="secondary">Create account</button>
+    </div>
+    <div class="row mobile-stack" style="margin-top:9px">
+      <button id="resetBtn" class="secondary">Send password reset email</button>
+      <button id="verifyBtn" class="secondary">Resend verification email</button>
+    </div>
+    <div id="authStatus" class="status" role="status"></div>
+  </section>
+
+  <section id="app" class="hidden">
+    <div class="card">
+      <div class="row mobile-stack">
+        <div><strong id="signedInAs"></strong><div class="small">Only this account can read or change its records.</div></div>
+        <button id="signOutBtn" class="secondary" style="flex:0 0 auto">Sign out</button>
+      </div>
+      <div class="notice" style="margin-top:13px">This is a student-maintained tracker, not an official university attendance record. Mark each class honestly. The percentage is calculated from the sessions you have entered.</div>
+    </div>
+
+    <section class="card">
+      <h2>Mark a class</h2>
+      <label for="classDate">Date</label>
+      <input id="classDate" type="date">
+      <label for="subject">Subject</label>
+      <select id="subject">
+        <option value="Mathematics">Mathematics</option>
+        <option value="Communicative English">Communicative English</option>
+        <option value="Engineering Mechanics">Engineering Mechanics</option>
+        <option value="Engineering Chemistry">Engineering Chemistry</option>
+        <option value="Engineering Drawing">Engineering Drawing</option>
+        <option value="Workshop Practice">Workshop Practice</option>
+        <option value="Engineering Chemistry Lab">Engineering Chemistry Lab</option>
+        <option value="Communicative English Lab">Communicative English Lab</option>
+      </select>
+      <label for="sessionName">Class/session (e.g. Period 1, Lab, Workshop)</label>
+      <input id="sessionName" maxlength="60" placeholder="e.g. Period 1">
+      <label for="duration">Session duration</label>
+      <select id="duration">
+        <option value="1">1 hour (1 attendance)</option>
+        <option value="2">2 hours (2 attendance)</option>
+        <option value="3">3 hours — lab/workshop/drawing (all or nothing)</option>
+      </select>
+      <p id="durationHint" class="small">For a 3-hour session, Present adds 3 hours; Absent adds 0.</p>
+      <div class="row mobile-stack" style="margin-top:12px">
+        <button id="presentBtn" class="present">Present</button>
+        <button id="absentBtn" class="absent">Absent</button>
+      </div>
+      <div id="markStatus" class="status" role="status"></div>
+    </section>
+
+    <section class="card">
+      <h2>My attendance summary</h2>
+      <div class="stats">
+        <div class="stat"><strong id="overallPct">—</strong><span>Overall attendance</span></div>
+        <div class="stat"><strong id="presentHours">0</strong><span>Present hours</span></div>
+        <div class="stat"><strong id="totalHours">0</strong><span>Recorded hours</span></div>
+      </div>
+      <p class="small">Target: 75%. A subject with no recorded classes shows “No records yet”. For an accurate percentage, record every class you attend or miss.</p>
+      <div id="subjectSummary"></div>
+    </section>
+
+    <section class="card">
+      <h2>My recent records</h2>
+      <div id="records"><p class="small">Loading your records…</p></div>
+    </section>
+  </section>
+</main>
+<footer>Privacy: attendance is stored in Firebase under your unique account ID. Other students cannot read or edit your records using the provided Firestore rules. Keep your password private.</footer>
+
+<script type="module">
+  // STEP 1: Replace the placeholder values below with your Firebase web app config.
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+  import {
+    getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+    sendEmailVerification, sendPasswordResetEmail, signOut, onAuthStateChanged
+  } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+  import {
+    getFirestore, collection, doc, setDoc, getDocs, deleteDoc
+  } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "PASTE_API_KEY_HERE",
+    authDomain: "PASTE_PROJECT_ID_HERE.firebaseapp.com",
+    projectId: "PASTE_PROJECT_ID_HERE",
+    storageBucket: "PASTE_PROJECT_ID_HERE.appspot.com",
+    messagingSenderId: "PASTE_MESSAGING_SENDER_ID_HERE",
+    appId: "PASTE_APP_ID_HERE"
+  };
+
+  const configIsMissing = Object.values(firebaseConfig).some(v => String(v).includes("PASTE_"));
+  let auth, db;
+  const $ = id => document.getElementById(id);
+  const subjects = [
+    "Mathematics", "Communicative English", "Engineering Mechanics", "Engineering Chemistry",
+    "Engineering Drawing", "Workshop Practice", "Engineering Chemistry Lab", "Communicative English Lab"
+  ];
+  let currentUser = null;
+  let recordsCache = [];
+
+  function showStatus(id, message, type = "") {
+    const el = $(id); el.textContent = message; el.className = "status " + type;
+  }
+  function todayLocal() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  }
+  function safeId(s) { return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0,45); }
+  function getRecordId(date, subject, session) {
+    return `${date}__${safeId(subject)}__${safeId(session)}`;
+  }
+  function explainError(error) {
+    const code = error?.code || "";
+    const messages = {
+      "auth/invalid-credential": "Email or password is incorrect.",
+      "auth/email-already-in-use": "That email already has an account. Try signing in.",
+      "auth/weak-password": "Choose a password with at least 6 characters.",
+      "auth/invalid-email": "Enter a valid email address.",
+      "auth/too-many-requests": "Too many attempts. Wait a while and try again.",
+      "auth/network-request-failed": "Network error. Check your internet and retry.",
+      "permission-denied": "Firebase blocked this action. Check that you published the Firestore rules from the setup guide and verified your email.",
+      "unavailable": "Firebase is temporarily unavailable. Check your internet and try again."
+    };
+    return messages[code] || error?.message || "Something went wrong. Please try again.";
+  }
+
+  $("classDate").value = todayLocal();
+  $("subject").addEventListener("change", () => {
+    const s = $("subject").value;
+    if (s.includes("Lab") || s.includes("Drawing") || s.includes("Workshop")) $("duration").value = "3";
+    else $("duration").value = "1";
+  });
+  $("duration").addEventListener("change", () => {
+    const v = $("duration").value;
+    $("durationHint").textContent = v === "3"
+      ? "For a 3-hour session, Present adds 3 hours; Absent adds 0. Mark the entire session Present or Absent."
+      : `This session counts as ${v} scheduled hour(s).`;
+  });
+
+  if (configIsMissing) {
+    showStatus("authStatus", "Setup needed: add your Firebase web app configuration in index.html using the README instructions.", "error");
+    ["signInBtn","signUpBtn","resetBtn","verifyBtn"].forEach(id => $(id).disabled = true);
+  } else {
+    const appFirebase = initializeApp(firebaseConfig);
+    auth = getAuth(appFirebase);
+    db = getFirestore(appFirebase);
+
+    $("signInBtn").addEventListener("click", async () => {
+      try {
+        showStatus("authStatus", "Signing in…");
+        await signInWithEmailAndPassword(auth, $("email").value.trim(), $("password").value);
+        showStatus("authStatus", "");
+      } catch (e) { showStatus("authStatus", explainError(e), "error"); }
+    });
+    $("signUpBtn").addEventListener("click", async () => {
+      try {
+        showStatus("authStatus", "Creating account…");
+        const credential = await createUserWithEmailAndPassword(auth, $("email").value.trim(), $("password").value);
+        await sendEmailVerification(credential.user);
+        showStatus("authStatus", "Account created. Check your inbox (and spam folder), verify your email, then sign in again.", "ok");
+        await signOut(auth);
+      } catch (e) { showStatus("authStatus", explainError(e), "error"); }
+    });
+    $("resetBtn").addEventListener("click", async () => {
+      try {
+        if (!$("email").value.trim()) throw new Error("Enter your email address first.");
+        await sendPasswordResetEmail(auth, $("email").value.trim());
+        showStatus("authStatus", "Password reset email sent. Check your inbox.", "ok");
+      } catch (e) { showStatus("authStatus", explainError(e), "error"); }
+    });
+    $("verifyBtn").addEventListener("click", async () => {
+      try {
+        if (!auth.currentUser) throw new Error("Sign in first, then press this button.");
+        await sendEmailVerification(auth.currentUser);
+        showStatus("authStatus", "Verification email sent. Check your inbox.", "ok");
+      } catch (e) { showStatus("authStatus", explainError(e), "error"); }
+    });
+    $("signOutBtn").addEventListener("click", () => signOut(auth));
+    onAuthStateChanged(auth, async user => {
+      currentUser = user;
+      const verified = !!user?.emailVerified;
+      $("authCard").classList.toggle("hidden", !!user && verified);
+      $("app").classList.toggle("hidden", !user || !verified);
+      if (user && !verified) {
+        showStatus("authStatus", "Your email is not verified yet. Check your inbox, then sign out and sign in again.", "error");
+      } else if (user && verified) {
+        $("signedInAs").textContent = user.email;
+        showStatus("authStatus", "");
+        await loadRecords();
+      }
+    });
+  }
+
+  async function loadRecords() {
+    if (!currentUser || !currentUser.emailVerified) return;
+    try {
+      const snap = await getDocs(collection(db, "users", currentUser.uid, "attendance"));
+      recordsCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      recordsCache.sort((a,b) => (b.date || "").localeCompare(a.date || ""));
+      renderRecords();
+      renderSummary();
+    } catch (e) {
+      showStatus("markStatus", explainError(e), "error");
+      $("records").innerHTML = '<p class="small">Could not load records. Check your Firebase Firestore rules and internet connection.</p>';
+    }
+  }
+
+  async function mark(status) {
+    if (!currentUser || !currentUser.emailVerified) {
+      showStatus("markStatus", "Sign in with a verified email first.", "error"); return;
+    }
+    const date = $("classDate").value;
+    const subject = $("subject").value;
+    const session = $("sessionName").value.trim();
+    const hours = Number($("duration").value);
+    if (!date || !session) {
+      showStatus("markStatus", "Choose a date and enter a session name first.", "error"); return;
+    }
+    if (hours === 3 && !/(lab|workshop|drawing)/i.test(subject)) {
+      const ok = confirm("You selected 3 hours for a subject that does not look like a lab, workshop, or drawing. Continue?");
+      if (!ok) return;
+    }
+    const id = getRecordId(date, subject, session);
+    const record = { date, subject, session, hours, status, updatedAt: new Date().toISOString() };
+    $("presentBtn").disabled = $("absentBtn").disabled = true;
+    showStatus("markStatus", "Saving…");
+    try {
+      await setDoc(doc(db, "users", currentUser.uid, "attendance", id), record);
+      showStatus("markStatus", `${status} saved for ${subject} — ${date}.`, "ok");
+      await loadRecords();
+    } catch (e) {
+      showStatus("markStatus", explainError(e), "error");
+    } finally {
+      $("presentBtn").disabled = $("absentBtn").disabled = false;
+    }
+  }
+  if (!configIsMissing) {
+    $("presentBtn").addEventListener("click", () => mark("Present"));
+    $("absentBtn").addEventListener("click", () => mark("Absent"));
+  }
+
+  function renderSummary() {
+    const totals = Object.fromEntries(subjects.map(s => [s, {present:0,total:0}]));
+    let present = 0, total = 0;
+    for (const r of recordsCache) {
+      if (!totals[r.subject]) totals[r.subject] = {present:0,total:0};
+      const h = Number(r.hours) || 1;
+      totals[r.subject].total += h;
+      total += h;
+      if (r.status === "Present") { totals[r.subject].present += h; present += h; }
+    }
+    $("overallPct").textContent = total ? `${Math.round(present/total*100)}%` : "—";
+    $("presentHours").textContent = String(present);
+    $("totalHours").textContent = String(total);
+    $("subjectSummary").innerHTML = "";
+    for (const s of subjects) {
+      const t = totals[s], pct = t.total ? Math.round(t.present/t.total*100) : null;
+      const div = document.createElement("div"); div.className = "subject";
+      const left = document.createElement("div"); left.className = "subject-title";
+      const name = document.createElement("span"); name.textContent = s;
+      const percentage = document.createElement("span"); percentage.textContent = pct === null ? "No records yet" : `${pct}%`;
+      left.append(name, percentage);
+      const detail = document.createElement("div"); detail.className = "small";
+      detail.textContent = t.total ? `${t.present} present hours out of ${t.total} recorded hours${pct < 75 ? " · Below 75% target" : " · At/above 75% target"}` : "Record a class to start tracking.";
+      div.append(left, detail);
+      if (pct !== null) { const bar = document.createElement("div"); bar.className = "bar"; const fill = document.createElement("div"); fill.style.width = `${pct}%`; if (pct < 75) fill.style.background = "#c24136"; bar.append(fill); div.append(bar); }
+      $("subjectSummary").append(div);
+    }
+  }
+
+  function renderRecords() {
+    const root = $("records"); root.innerHTML = "";
+    if (!recordsCache.length) { root.innerHTML = '<p class="small">No attendance records yet. Use the Present or Absent buttons above to add your first class.</p>'; return; }
+    for (const r of recordsCache.slice(0,60)) {
+      const row = document.createElement("div"); row.className = "record";
+      const details = document.createElement("div");
+      const title = document.createElement("strong"); title.textContent = `${r.subject} · ${r.session}`;
+      const sub = document.createElement("div"); sub.className = "small"; sub.textContent = `${r.date} · ${r.hours} hour(s)`;
+      details.append(title, sub);
+      const right = document.createElement("div"); right.style.textAlign = "right";
+      const pill = document.createElement("span"); pill.className = "pill"; pill.textContent = r.status;
+      pill.style.background = r.status === "Present" ? "#d9f5e7" : "#ffebe9";
+      const del = document.createElement("button"); del.className = "secondary"; del.textContent = "Delete"; del.style.display = "block"; del.style.padding = "5px 8px"; del.style.marginTop = "5px";
+      del.addEventListener("click", async () => {
+        if (!confirm(`Delete ${r.subject} on ${r.date}?`)) return;
+        try { await deleteDoc(doc(db, "users", currentUser.uid, "attendance", r.id)); await loadRecords(); showStatus("markStatus", "Record deleted.", "ok"); }
+        catch(e) { showStatus("markStatus", explainError(e), "error"); }
+      });
+      right.append(pill, del); row.append(details, right); root.append(row);
+    }
+  }
+</script>
+</body>
+</html>
